@@ -5,4 +5,4 @@ This repository helps with the simulation of waveguide sensitivity by using FDTD
 
 <img src="https://raw.githubusercontent.com/EnxiaoLuan/Pics_for_Github/master/Sensitivity_def.png" width="800">
 
-<img src="https://raw.githubusercontent.com/EnxiaoLuan/Pics_for_Github/master/WGS_AS.png" width="800">
+<img src="https://raw.githubusercontent.com/EnxiaoLuan/Pics_for_Github/master/WGS_AS.png" width="900">
