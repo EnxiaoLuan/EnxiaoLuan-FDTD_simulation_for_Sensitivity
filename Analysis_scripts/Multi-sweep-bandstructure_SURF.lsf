@@ -1,0 +1,95 @@
+# Script to create the band structure diagram, and extract neff, ng.
+substrate_material = "SiO2 (Glass) - Palik Dispersive";
+# get the total spectrum based on different pitch/duty_cycle
+total_spectrum = getsweepresult("surface_sensing","total_spectrum");
+
+# get resutls from the 5D-matrix of fs
+total_fs = total_spectrum.getattribute("fs");
+
+# extract curve of fband vs beta
+a = getnamed("::model","pitch");
+beta = total_spectrum.kx*2*pi/a;
+fband = matrix(length(total_spectrum.kx));
+neff_1550 = matrix(length(total_spectrum.adlayer));
+ng_1550 = matrix(length(total_spectrum.adlayer));
+
+#get invidual fs matrix based on each pitch/duty_cycle
+for (i=1:length(total_spectrum.adlayer)) {
+    fs_i=total_fs(:,:,i);
+    fs_i_new=fs_i(:,:);
+    # image all f vs kx pics on a log scale
+    image(total_spectrum.kx,total_spectrum.f*1e-12,transpose(log10(abs(fs_i_new))),"k (2pi/a)","f (THz)");
+
+    for(j=1:length(beta)) {
+      peak_pos = findpeaks(abs(fs_i_new(1:length(total_spectrum.f),j)));
+      fband(j) = total_spectrum.f(peak_pos);
+    }
+
+# plot the wavelength versus the k vector value.
+   # plotxy(total_spectrum.kx, c/fband*1e9,"k (2pi/a)","Wavelength (nm)");
+
+
+# fit to a (N-1)th order polynomial
+    N = 3;
+    w = 2*pi*fband;
+    p = polyfit(beta,w,N);
+
+# sample the data on a high resolution
+    beta_high_res = linspace(min(beta),max(beta),1000);
+    w_high_res = p(1);
+    for(ii=2:length(p)) {
+        w_high_res = w_high_res + p(ii)*beta_high_res^(ii-1);
+    }
+
+# plot the original data and the fitted result and lightline
+    lightline_w = linspace(0.95*min(w_high_res),1.05*max(w_high_res),1000);
+    n_substrate = getfdtdindex(substrate_material,lightline_w/(2*pi),min(total_spectrum.f),max(total_spectrum.f));
+    lightline_beta = lightline_w*real(n_substrate)/c;
+    #plotxy(beta,w,
+       #beta_high_res,w_high_res,
+       #lightline_beta,lightline_w,"beta (1/m)","w (rad/s)");
+    #legend("bandstructure data","polynomial fit to data","lightline");
+
+# calculate the phase velocity
+    v_phase = w_high_res/beta_high_res;
+
+# sample dw/dbeta to get the group velocity
+    dw_dbeta = p(2);
+    for(jj=3:length(p)) {
+        dw_dbeta = dw_dbeta + p(jj)*(jj-1)*beta_high_res^(jj-2);
+    }
+    v_group = dw_dbeta;
+
+# calculate neff and ng from the phase and group velocities
+    neff = c/v_phase;
+    ng = c/v_group;
+
+# plot neff and ng vs lambda
+    f_high_res = w_high_res/(2*pi);
+    lambda = c/f_high_res;
+    plot(lambda*1e9,neff,"wavelength (nm)","neff");
+    setplot("show legend",false);
+    plot(lambda*1e9,ng,"wavelength (nm)","ng");
+    setplot("show legend",false);
+
+# display the neff and ng at 1550nm
+    neff_1550(i) = interp(neff,lambda,1550e-9);
+    ng_1550(i) = interp(ng,lambda,1550e-9);
+#neff_1500 = interp(neff, lambda, 1500e-9);
+}
+?"neff at 1550 = " + num2str(neff_1550);
+?"ng at 1550 = " + num2str(ng_1550);
+#?"neff at 1500 = " + num2str(neff_1500);
+#?"substrate index at 1550 = " + num2str(real(interp(n_substrate,lightline_w/(2*pi),c/1550e-9)));
+
+#plot the effective index change as a function of cladding change in index
+plot(total_spectrum.adlayer, neff_1550,"Delta_adlayer_thickness [nm]","Delta_neff [RIU]");
+#check the linear part and fit the curve for surface sensing
+sensitivity = (1550/mean(ng_1550))*(neff_1550(4)-neff_1550(1))/((total_spectrum.adlayer(4)-total_spectrum.adlayer(1))*1e9);
+
+# display the waveguide sensitivity with a unit of RIU/nm
+?"wavegudie senstivity = " + num2str((neff_1550(4)-neff_1550(1))/((total_spectrum.adlayer(4)-total_spectrum.adlayer(1))*1e9)) + "RIU/nm";
+
+
+# display the bulk sensitivity with a unit of nm/RIU
+?"sensitivity = " + num2str(sensitivity*1e3) + "pm/nm";
